@@ -1,7 +1,15 @@
-package me.xqh.awesome.delayqueue.core.job;
+/*
+ * Copyright (c) 2018
+ * User:qinghua.xu
+ * File:AwesomeJob.java
+ * Date:2018/09/27
+ */
+
+package me.xqh.awesome.delayqueue.core.storage;
+
 
 /**
- * @author xuqinghua
+ * @author qinghua.xu
  * @date 2018-09-26
  * job定义
  */
@@ -9,10 +17,19 @@ public class AwesomeJob {
     private String id;
     private String topic;
     private long delaySeconds;
-    private long expireTime;
+    private final long expireTime;
     private String data;
     private int triggerType;
+    private int status;
+    private int countDown;
 
+    public AwesomeJob(String id,String topic,long delaySeconds){
+        this.delaySeconds = delaySeconds;
+        this.id = id;
+        this.topic = topic;
+        this.countDown = 1;
+        expireTime = System.currentTimeMillis() + delaySeconds*1000;
+    }
     public String getId() {
         return id;
     }
@@ -41,10 +58,6 @@ public class AwesomeJob {
         return expireTime;
     }
 
-    public void setExpireTime(long expireTime) {
-        this.expireTime = expireTime;
-    }
-
     public String getData() {
         return data;
     }
@@ -61,6 +74,22 @@ public class AwesomeJob {
         this.triggerType = triggerType;
     }
 
+    public int getStatus() {
+        return status;
+    }
+
+    public void setStatus(int status) {
+        this.status = status;
+    }
+
+    public int getCountDown() {
+        return countDown;
+    }
+
+    public void setCountDown(int countDown) {
+        this.countDown = countDown;
+    }
+
     @Override
     public String toString() {
         return "AwesomeJob{" +
@@ -70,6 +99,7 @@ public class AwesomeJob {
                 ", expireTime=" + expireTime +
                 ", data='" + data + '\'' +
                 ", triggerType=" + triggerType +
+                ", status=" + status +
                 '}';
     }
 }
