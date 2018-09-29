@@ -7,11 +7,13 @@
 
 package me.xqh.awesome.delayqueue.storage.api;
 
+import java.io.Serializable;
+
 /**
  * @author qinghua.xu
  * @date 2018/9/28
  **/
-public class AwesomeTopic {
+public class AwesomeTopic implements Serializable {
     private String topic;
     private int capacity;
     private int subJobLimit;

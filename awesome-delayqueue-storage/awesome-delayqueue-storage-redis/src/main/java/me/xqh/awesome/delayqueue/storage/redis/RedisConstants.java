@@ -23,9 +23,9 @@ public class RedisConstants {
             return value;
         }
     }
-    public static final int triggerType_expire = 1;
-    public static final int triggerType_count = 2;
-    public static final int triggerType_all = 3;
+    public static final int triggerType_expire = 0;
+    public static final int triggerType_count = 1;
+    public static final int triggerType_all = 2;
     /**
      * 生成redis存储job的key
      * @param jobId
@@ -41,7 +41,7 @@ public class RedisConstants {
         return "awesome-dq-countBucket";
     }
 
-    public static final String generateReadQueueKey(String topic){
+    public static final String generateReadySetKey(String topic){
         return "awesome-dq-ready-" + topic;
     }
     public static final boolean isEmpty(String target){

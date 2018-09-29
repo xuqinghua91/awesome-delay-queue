@@ -7,6 +7,8 @@
 
 package me.xqh.awesome.delayqueue.storage.api;
 
+import me.xqh.awesome.delayqueue.common.AwesomeURL;
+
 /**
  * @author qinghua.xu
  * @date 2018/9/27
@@ -14,9 +16,9 @@ package me.xqh.awesome.delayqueue.storage.api;
 public abstract class AbstractStorageFactory implements StorageFactory {
 
     @Override
-    public StorageService getStorageService() {
-        return createStorageService();
+    public StorageService getStorageService(AwesomeURL url) {
+        return createStorageService(url);
     }
 
-    protected abstract StorageService createStorageService() ;
+    protected abstract StorageService createStorageService(AwesomeURL url) ;
 }

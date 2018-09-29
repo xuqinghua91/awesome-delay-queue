@@ -23,3 +23,5 @@
 hs_err_pid*
 .idea/
 *.iml
+awesome-delayqueue-storage/awesome-delayqueue-storage-redis/target/
+awesome-delayqueue-web/target/
