@@ -11,6 +11,8 @@ import com.alibaba.fastjson.JSON;
 import me.xqh.awesome.delayqueue.common.AwesomeURL;
 import me.xqh.awesome.delayqueue.common.Constants;
 import me.xqh.awesome.delayqueue.common.StringUtils;
+import me.xqh.awesome.delayqueue.common.exception.AwesomeException;
+import me.xqh.awesome.delayqueue.common.exception.JobAlreadyExistException;
 import me.xqh.awesome.delayqueue.storage.api.AbstractStorageService;
 import me.xqh.awesome.delayqueue.storage.api.AwesomeJob;
 import me.xqh.awesome.delayqueue.storage.api.AwesomeTopic;
@@ -22,6 +24,7 @@ import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.Transaction;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 
@@ -73,11 +76,10 @@ public class RedisStorageService extends AbstractStorageService {
     protected boolean doAddJob(AwesomeJob job) {
         job.setStatus(RedisConstants.JobStatus.delay.getValue());
         String jobId = job.getId();
-        Jedis jedis = jedisPool.getResource();
-        Transaction tx = jedis.multi();
-        boolean result = false;
         //TODO 改为lua script
-        try {
+        boolean result = false;
+        try(Jedis jedis = jedisPool.getResource()) {
+            Transaction tx = jedis.multi();
             tx.set(RedisConstants.generateJobKey(jobId), JSON.toJSONString(job));
             switch (job.getTriggerType()){
                 case RedisConstants.triggerType_expire:
@@ -91,16 +93,25 @@ public class RedisStorageService extends AbstractStorageService {
                 default:break;
             }
             tx.exec();
+            System.out.println("job 加入：" + jobId+"; "+new Date(System.currentTimeMillis()));
             result = true;
         }catch (Exception e){
-            tx.discard();
+            System.out.println(e);
         }
-        return false;
+        return result;
     }
 
     @Override
-    protected boolean checkJobRestrict(AwesomeJob job) {
+    protected boolean checkJobRestrict(AwesomeJob job) throws AwesomeException {
         //TODO 做topic、job的校验
+//        try (Jedis jedis = jedisPool.getResource()){
+//            String json = jedis.get(RedisConstants.generateJobKey(job.getId()));
+//            AwesomeJob existJob =  JSON.parseObject(json,AwesomeJob.class);
+//            if (null != existJob){
+//                throw new JobAlreadyExistException();
+//            }
+//        }
+
         return true;
     }
 
@@ -109,10 +120,13 @@ public class RedisStorageService extends AbstractStorageService {
     }
     @Override
     public AwesomeJob getJob(String id) {
-        Jedis jedis = jedisPool.getResource();
-        String json = jedis.get(RedisConstants.generateJobKey(id));
-        AwesomeJob job = JSON.parseObject(json,AwesomeJob.class);
-        return job;
+        try (Jedis jedis = jedisPool.getResource()){
+            String json = jedis.get(RedisConstants.generateJobKey(id));
+            AwesomeJob job = JSON.parseObject(json,AwesomeJob.class);
+            return job;
+        }catch (Exception e){
+            return null;
+        }
     }
 
     @Override
@@ -122,71 +136,83 @@ public class RedisStorageService extends AbstractStorageService {
 
     @Override
     public List<AwesomeJob> listExpiredJobs(long currentTime) {
-        Jedis jedis = jedisPool.getResource();
-        Set<String> jobSet = jedis.zrangeByScore(RedisConstants.generateDelayBucketKey(),0,currentTime);
-        List<AwesomeJob> expiredList = new ArrayList<>(jobSet.size());
-        for (String id: jobSet){
-            String json = jedis.get(RedisConstants.generateJobKey(id));
-            if (RedisConstants.isEmpty(json)){
-                break;
+        try (Jedis jedis = jedisPool.getResource()){
+            Set<String> jobSet = jedis.zrangeByScore(RedisConstants.generateDelayBucketKey(),0,currentTime);
+            List<AwesomeJob> expiredList = new ArrayList<>(jobSet.size());
+            for (String id: jobSet){
+                String json = jedis.get(RedisConstants.generateJobKey(id));
+                if (RedisConstants.isEmpty(json)){
+                    break;
+                }
+                AwesomeJob job = JSON.parseObject(json,AwesomeJob.class);
+                if (job.getStatus() == RedisConstants.JobStatus.delay.getValue()){
+                    expiredList.add(job);
+                }
             }
-            AwesomeJob job = JSON.parseObject(json,AwesomeJob.class);
-            if (job.getStatus() == RedisConstants.JobStatus.delay.getValue()){
-                expiredList.add(job);
-            }
+            return expiredList;
         }
-        return expiredList;
     }
 
     @Override
     public void transferExpiredJobs(List<AwesomeJob> jobList) {
-        Jedis jedis = jedisPool.getResource();
-        for (AwesomeJob job: jobList){
-            job.setStatus(RedisConstants.JobStatus.ready.getValue());
-            Transaction  tx = jedis.multi();
-            try {
-                tx.set(RedisConstants.generateJobKey(job.getId()),JSON.toJSONString(job));
-                tx.zadd(RedisConstants.generateReadySetKey(job.getTopic()),job.getExpireTime(),job.getId());
-                tx.exec();
-            }catch (Exception e){
-                tx.discard();
-                logger.error("job过期，转移到 ready queue消费出错，jobId:{},error:{}",job.getId(),e);
+        try (Jedis jedis = jedisPool.getResource()){
+            for (AwesomeJob job: jobList){
+                job.setStatus(RedisConstants.JobStatus.ready.getValue());
+                Transaction  tx = jedis.multi();
+                try {
+                    tx.set(RedisConstants.generateJobKey(job.getId()),JSON.toJSONString(job));
+                    tx.zrem(RedisConstants.generateDelayBucketKey(),job.getId());
+                    tx.zadd(RedisConstants.generateReadySetKey(job.getTopic()),job.getExpireTime(),job.getId());
+                    tx.exec();
+                }catch (Exception e){
+                    tx.discard();
+                    logger.error("job过期，转移到 ready queue消费出错，jobId:{},error:{}",job.getId(),e);
+                }
             }
         }
     }
 
     @Override
     public List<AwesomeJob> consumeReadyJobs(String topic,int number) {
-        Jedis jedis = jedisPool.getResource();
-        String topicListKey= RedisConstants.generateReadySetKey(topic);
-        long realLength = Math.min(number,jedis.zcount(topicListKey,0,System.currentTimeMillis()));
-        List<AwesomeJob> list = new ArrayList<>(Long.valueOf(realLength).intValue());
-        Set<String> keys = jedis.zrange(topicListKey,0,realLength);
-        for (String key:keys){
-            try {
-                String json = jedis.get(RedisConstants.generateJobKey(key));
-                AwesomeJob job = JSON.parseObject(json,AwesomeJob.class);
-                job.setStatus(RedisConstants.JobStatus.reserved.getValue());
-                jedis.set(RedisConstants.generateJobKey(key), JSON.toJSONString(job));
-                list.add(job);
-            }catch (Exception e){
-                logger.error("ready queue消费出错，jobId:{},error:{}",id,e);
+        try (Jedis jedis = jedisPool.getResource()){
+            String topicListKey= RedisConstants.generateReadySetKey(topic);
+            long realLength = Math.min(number,jedis.zcount(topicListKey,0,System.currentTimeMillis()));
+            List<AwesomeJob> list = new ArrayList<>(Long.valueOf(realLength).intValue());
+            Set<String> keys = jedis.zrange(topicListKey,0,realLength);
+            for (String key:keys){
+                try {
+                    String json = jedis.get(RedisConstants.generateJobKey(key));
+                    AwesomeJob job = JSON.parseObject(json,AwesomeJob.class);
+                    job.setStatus(RedisConstants.JobStatus.reserved.getValue());
+                    jedis.set(RedisConstants.generateJobKey(key), JSON.toJSONString(job));
+                    jedis.zrem(topicListKey,key);
+                    //TODO 处理unAck 消息
+                    list.add(job);
+                }catch (Exception e){
+                    logger.error("ready queue消费出错，jobId:{},error:{}",key,e);
+                }
             }
+
+            return list;
         }
-//        for (int i = 0;i< realLength;i++){
-//
-//        }
-        return list;
     }
 
     @Override
     public boolean addAwesomeTopic(AwesomeTopic topic) {
-        //TODO
-        return false;
+        try (Jedis jedis = jedisPool.getResource()){
+            long result = jedis.setnx(RedisConstants.generateTopicKey(topic.getTopic()), JSON.toJSONString(topic));
+            if (result == 0){
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
     public AwesomeTopic getAwesomeTopic(String topic) {
-        return null;
+        try (Jedis jedis = jedisPool.getResource()){
+            String json = jedis.get(RedisConstants.generateTopicKey(topic));
+            return JSON.parseObject(json,AwesomeTopic.class);
+        }
     }
 }

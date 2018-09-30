@@ -7,6 +7,9 @@
 
 package me.xqh.awesome.delayqueue.storage.api;
 
+import me.xqh.awesome.delayqueue.common.exception.AwesomeException;
+import me.xqh.awesome.delayqueue.common.exception.JobAlreadyExistException;
+
 import java.util.List;
 
 /**
@@ -18,7 +21,7 @@ public interface StorageService {
      * 添加任务
      * @param job
      */
-    boolean addJob(AwesomeJob job);
+    boolean addJob(AwesomeJob job) throws AwesomeException;
 
     /**
      * 获取job信息

@@ -7,6 +7,7 @@
 
 package me.xqh.awesome.delayqueue.web.controller;
 
+import me.xqh.awesome.delayqueue.common.exception.AwesomeException;
 import me.xqh.awesome.delayqueue.storage.api.AwesomeJob;
 import me.xqh.awesome.delayqueue.storage.api.StorageService;
 import me.xqh.awesome.delayqueue.web.request.ReqAddJob;
@@ -28,7 +29,7 @@ public class AddJobController extends BaseController{
     @Autowired
     private StorageService storageService;
     @RequestMapping("job/add")
-    public BaseResponse<Boolean> addJob(@RequestBody ReqAddJob job){
+    public BaseResponse<Boolean> addJob(@RequestBody ReqAddJob job) throws AwesomeException {
         AwesomeJob awesomeJob = new AwesomeJob(job.getId(),job.getTopic(),job.getDelaySeconds());
         awesomeJob.setTriggerType(job.getTriggerType());
         awesomeJob.setData(job.getData());

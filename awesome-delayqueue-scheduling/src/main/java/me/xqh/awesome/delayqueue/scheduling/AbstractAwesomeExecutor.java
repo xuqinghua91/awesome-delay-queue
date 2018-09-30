@@ -28,6 +28,7 @@ public abstract class AbstractAwesomeExecutor implements AwesomeExecutor {
         ServiceLoader<StorageFactory> sl = ServiceLoader.load(StorageFactory.class);
         Iterator<StorageFactory> iter = sl.iterator();
         while (iter.hasNext()){
+            //TODO
             StorageFactory storageFactory = iter.next();
             storageService = storageFactory.getStorageService(url);
             break;

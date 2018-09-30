@@ -44,6 +44,13 @@ public class RedisConstants {
     public static final String generateReadySetKey(String topic){
         return "awesome-dq-ready-" + topic;
     }
+
+    public static final String generateTopicKey(String topic){
+        return "awesome-dq-topic-"+topic;
+    }
+    public static final String generateTopicJobsSetKey(String topic){
+        return "awesome-dq-topicJobsSet-"+topic;
+    }
     public static final boolean isEmpty(String target){
         if (null == target || target.trim().length() == 0){
             return true;

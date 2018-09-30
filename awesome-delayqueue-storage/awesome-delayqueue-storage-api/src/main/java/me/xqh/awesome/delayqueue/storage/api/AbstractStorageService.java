@@ -8,6 +8,8 @@
 package me.xqh.awesome.delayqueue.storage.api;
 
 import me.xqh.awesome.delayqueue.common.AwesomeURL;
+import me.xqh.awesome.delayqueue.common.exception.AwesomeException;
+import me.xqh.awesome.delayqueue.common.exception.JobAlreadyExistException;
 
 /**
  * @author qinghua.xu
@@ -16,7 +18,7 @@ import me.xqh.awesome.delayqueue.common.AwesomeURL;
 public abstract class AbstractStorageService implements StorageService{
     protected AwesomeURL url;
     @Override
-    public boolean addJob(AwesomeJob job) {
+    public boolean addJob(AwesomeJob job) throws AwesomeException {
         if (checkJobRestrict(job)){
             return doAddJob(job);
         }
@@ -27,7 +29,7 @@ public abstract class AbstractStorageService implements StorageService{
     }
 
     protected abstract boolean doAddJob(AwesomeJob job);
-    protected abstract boolean checkJobRestrict(AwesomeJob job);
+    protected abstract boolean checkJobRestrict(AwesomeJob job) throws AwesomeException;
 
 
 }
