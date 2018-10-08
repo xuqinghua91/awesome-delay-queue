@@ -23,9 +23,9 @@ public class RedisConstants {
             return value;
         }
     }
-    public static final int triggerType_expire = 0;
-    public static final int triggerType_count = 1;
-    public static final int triggerType_all = 2;
+    public static final int triggerType_expire = 1;
+    public static final int triggerType_count = 2;
+    public static final int triggerType_all = 3;
     /**
      * 生成redis存储job的key
      * @param jobId

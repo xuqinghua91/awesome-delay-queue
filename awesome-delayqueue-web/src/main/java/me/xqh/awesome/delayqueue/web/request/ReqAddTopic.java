@@ -18,6 +18,7 @@ public class ReqAddTopic extends BaseRequest {
     private String topic;
     private Integer capacity;
     private Integer subJobLimit;
+    private Integer triggerType;
 
     public String getTopic() {
         return topic;
@@ -41,5 +42,13 @@ public class ReqAddTopic extends BaseRequest {
 
     public void setSubJobLimit(Integer subJobLimit) {
         this.subJobLimit = subJobLimit;
+    }
+
+    public Integer getTriggerType() {
+        return triggerType;
+    }
+
+    public void setTriggerType(Integer triggerType) {
+        this.triggerType = triggerType;
     }
 }

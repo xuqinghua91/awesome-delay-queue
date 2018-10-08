@@ -21,7 +21,6 @@ public class AwesomeJob implements Serializable {
     private long delaySeconds;
     private  long expireTime;
     private String data;
-    private Integer triggerType;
     private Integer status;
     private Integer countDown;
 
@@ -70,14 +69,6 @@ public class AwesomeJob implements Serializable {
     }
 
 
-    public Integer getTriggerType() {
-        return triggerType;
-    }
-
-    public void setTriggerType(Integer triggerType) {
-        this.triggerType = triggerType;
-    }
-
     public Integer getStatus() {
         return status;
     }
@@ -102,7 +93,6 @@ public class AwesomeJob implements Serializable {
                 ", delaySeconds=" + delaySeconds +
                 ", expireTime=" + expireTime +
                 ", data='" + data + '\'' +
-                ", triggerType=" + triggerType +
                 ", status=" + status +
                 '}';
     }

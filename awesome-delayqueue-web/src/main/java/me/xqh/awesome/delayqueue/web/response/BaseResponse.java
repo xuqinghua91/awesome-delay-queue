@@ -19,10 +19,9 @@ public class BaseResponse<T> {
     protected String resultDesc;
     protected T data;
 
-    public BaseResponse(String resultCode,String resultDesc,T data){
+    public BaseResponse(String resultCode,String resultDesc){
         this.resultCode = resultCode;
         this.resultDesc = resultDesc;
-        this.data = data;
     }
     public BaseResponse(T data){
         resultCode = SUCCESS_CODE;

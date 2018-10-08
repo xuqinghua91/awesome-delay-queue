@@ -12,4 +12,7 @@ package me.xqh.awesome.delayqueue.common.exception;
  * @date 2018/9/30
  **/
 public class JobAlreadyExistException extends AwesomeException {
+    public JobAlreadyExistException(){
+        super(AwesomeErrorCode.JOB_ALREADY_EXIST);
+    }
 }

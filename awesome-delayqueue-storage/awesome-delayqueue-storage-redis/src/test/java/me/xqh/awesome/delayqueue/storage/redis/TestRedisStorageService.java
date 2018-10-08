@@ -43,7 +43,6 @@ public class TestRedisStorageService {
     public void testJson(){
 //        String json = "{\"countDown\":1,\"delaySeconds\":15,\"expireTime\":1538216736008,\"id\":\"xu001\",\"status\":\"1\",\"topic\":\"order\",\"triggerType\":2}";
         AwesomeJob j1 = new AwesomeJob("qqq","www",14);
-        j1.setTriggerType(1);
         j1.setStatus(1);
         j1.setData("222");
 

@@ -12,4 +12,8 @@ package me.xqh.awesome.delayqueue.common.exception;
  * @date 2018/9/30
  **/
 public class NoTopicException extends AwesomeException {
+    public NoTopicException(){
+        super(AwesomeErrorCode.NO_TOPIC);
+    }
+
 }

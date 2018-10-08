@@ -15,8 +15,9 @@ import java.io.Serializable;
  **/
 public class AwesomeTopic implements Serializable {
     private String topic;
-    private int capacity;
-    private int subJobLimit;
+    private Integer capacity;
+    private Integer subJobLimit;
+    private Integer triggerType;
 
     public String getTopic() {
         return topic;
@@ -26,19 +27,27 @@ public class AwesomeTopic implements Serializable {
         this.topic = topic;
     }
 
-    public int getCapacity() {
+    public Integer getCapacity() {
         return capacity;
     }
 
-    public void setCapacity(int capacity) {
+    public void setCapacity(Integer capacity) {
         this.capacity = capacity;
     }
 
-    public int getSubJobLimit() {
+    public Integer getSubJobLimit() {
         return subJobLimit;
     }
 
-    public void setSubJobLimit(int subJobLimit) {
+    public void setSubJobLimit(Integer subJobLimit) {
         this.subJobLimit = subJobLimit;
+    }
+
+    public Integer getTriggerType() {
+        return triggerType;
+    }
+
+    public void setTriggerType(Integer triggerType) {
+        this.triggerType = triggerType;
     }
 }

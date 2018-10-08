@@ -12,7 +12,6 @@ import me.xqh.awesome.delayqueue.storage.api.AwesomeJob;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -65,7 +64,17 @@ public class PollingAwesomeExecutor extends AbstractAwesomeExecutor {
                 }
             }
         };
+        Runnable runCount = new Runnable() {
+            @Override
+            public void run() {
+                List<AwesomeJob> list =storageService.listCountdownJobs();
+                for (AwesomeJob job : list){
+                    blockingQueue.offer(job);
+                }
+            }
+        };
         executorService.submit(run);
+        executorService.submit(runCount);
     }
 
     /**

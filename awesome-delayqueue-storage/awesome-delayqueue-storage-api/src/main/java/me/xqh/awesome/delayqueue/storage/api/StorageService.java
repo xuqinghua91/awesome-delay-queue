@@ -8,7 +8,6 @@
 package me.xqh.awesome.delayqueue.storage.api;
 
 import me.xqh.awesome.delayqueue.common.exception.AwesomeException;
-import me.xqh.awesome.delayqueue.common.exception.JobAlreadyExistException;
 
 import java.util.List;
 
@@ -42,6 +41,8 @@ public interface StorageService {
      */
     List<AwesomeJob> listExpiredJobs(long currentTime);
 
+    List<AwesomeJob> listCountdownJobs();
+    void countdownJob(String jobId);
     /**
      * 将过期job或者到达计数的job转移到就绪队列
      * @param jobList

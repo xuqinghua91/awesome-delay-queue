@@ -12,7 +12,9 @@ import me.xqh.awesome.delayqueue.common.AwesomeURL;
 import me.xqh.awesome.delayqueue.common.Constants;
 import me.xqh.awesome.delayqueue.common.StringUtils;
 import me.xqh.awesome.delayqueue.common.exception.AwesomeException;
+import me.xqh.awesome.delayqueue.common.exception.ExceedTopicLimitException;
 import me.xqh.awesome.delayqueue.common.exception.JobAlreadyExistException;
+import me.xqh.awesome.delayqueue.common.exception.NoTopicException;
 import me.xqh.awesome.delayqueue.storage.api.AbstractStorageService;
 import me.xqh.awesome.delayqueue.storage.api.AwesomeJob;
 import me.xqh.awesome.delayqueue.storage.api.AwesomeTopic;
@@ -71,24 +73,31 @@ public class RedisStorageService extends AbstractStorageService {
     }
 
     @Override
-    protected boolean doAddJob(AwesomeJob job) {
+    protected boolean doAddJob(AwesomeJob job) throws AwesomeException {
         job.setStatus(RedisConstants.JobStatus.delay.getValue());
         String jobId = job.getId();
+        checkJobRestrict(job);
         //TODO 改为lua script
         boolean result = false;
         try(Jedis jedis = jedisPool.getResource()) {
+            String topicStr = jedis.get(RedisConstants.generateTopicKey(job.getTopic()));
+            AwesomeTopic awesomeTopic = JSON.parseObject(topicStr,AwesomeTopic.class);
+
             Pipeline pipeline = jedis.pipelined();
             pipeline.multi();
-//            Transaction tx = jedis.multi();
             pipeline.set(RedisConstants.generateJobKey(jobId), JSON.toJSONString(job));
-            switch (job.getTriggerType()){
+            //将jobId保存到topic对应的set里
+            pipeline.sadd(RedisConstants.generateTopicJobsSetKey(job.getTopic()),jobId);
+            switch (awesomeTopic.getTriggerType()){
                 case RedisConstants.triggerType_expire:
                     pipeline.zadd(RedisConstants.generateDelayBucketKey(),job.getExpireTime(),jobId);
                     break;
                 case RedisConstants.triggerType_count:
+                    pipeline.zadd(RedisConstants.generateCountBucketKey(),awesomeTopic.getSubJobLimit()-1,jobId);
                     break;
                 case RedisConstants.triggerType_all:
                     pipeline.zadd(RedisConstants.generateDelayBucketKey(),job.getExpireTime(),jobId);
+                    pipeline.zadd(RedisConstants.generateCountBucketKey(),awesomeTopic.getSubJobLimit()-1,jobId);
                     break;
                 default:break;
             }
@@ -103,20 +112,24 @@ public class RedisStorageService extends AbstractStorageService {
 
     @Override
     protected boolean checkJobRestrict(AwesomeJob job) throws AwesomeException {
-        //TODO 做topic、job的校验
-//        try (Jedis jedis = jedisPool.getResource()){
-//            String json = jedis.get(RedisConstants.generateJobKey(job.getId()));
-//            AwesomeJob existJob =  JSON.parseObject(json,AwesomeJob.class);
-//            if (null != existJob){
-//                throw new JobAlreadyExistException();
-//            }
-//        }
+        try (Jedis jedis = jedisPool.getResource()){
+            String json = jedis.get(RedisConstants.generateJobKey(job.getId()));
+            if (StringUtils.isNotEmpty(json)){
+                throw new JobAlreadyExistException();
+            }
+            String topicStr = jedis.get(RedisConstants.generateTopicKey(job.getTopic()));
+            if (StringUtils.isEmpty(topicStr)){
+                throw  new NoTopicException();
+            }
+            AwesomeTopic topic = JSON.parseObject(topicStr,AwesomeTopic.class);
 
-        return true;
-    }
+            Long currentNum = jedis.scard(RedisConstants.generateTopicJobsSetKey(job.getTopic()));
+            if (currentNum != null && currentNum >= topic.getCapacity()){
+                throw new ExceedTopicLimitException();
+            }
+            return true;
+        }
 
-    private void handleCountDown(Jedis jedis){
-//        jedis.zadd(RedisConstants.generateCountBucketKey(),job.getExpireTime(),jobId);
     }
     @Override
     public AwesomeJob getJob(String id) {
@@ -154,12 +167,44 @@ public class RedisStorageService extends AbstractStorageService {
     }
 
     @Override
+    public List<AwesomeJob> listCountdownJobs() {
+        try (Jedis jedis = jedisPool.getResource()){
+            Set<String> jobSet = jedis.zrangeByScore(RedisConstants.generateCountBucketKey(),Integer.MIN_VALUE,0);
+            List<AwesomeJob> countList = new ArrayList<>(jobSet.size());
+            for (String id: jobSet){
+                String json = jedis.get(RedisConstants.generateJobKey(id));
+                if (RedisConstants.isEmpty(json)){
+                    break;
+                }
+                AwesomeJob job = JSON.parseObject(json,AwesomeJob.class);
+                if (job.getStatus() == RedisConstants.JobStatus.delay.getValue()){
+                    countList.add(job);
+                }
+            }
+            return countList;
+        }
+    }
+
+    @Override
+    public void countdownJob(String jobId) {
+        try (Jedis jedis = jedisPool.getResource()){
+            String key = RedisConstants.generateJobKey(jobId);
+            String json = jedis.get(RedisConstants.generateJobKey(jobId));
+            if (RedisConstants.isEmpty(json)){
+                //TODO 异常处理
+                return;
+            }
+            String countKey = RedisConstants.generateCountBucketKey();
+            jedis.zincrby(countKey,-1,jobId);
+        }
+    }
+
+    @Override
     public void transferExpiredJobs(List<AwesomeJob> jobList) {
         try (Jedis jedis = jedisPool.getResource()){
             Pipeline pipeline = jedis.pipelined();
             for (AwesomeJob job: jobList){
                 job.setStatus(RedisConstants.JobStatus.ready.getValue());
-//                Transaction  tx = jedis.multi();
                 pipeline.multi();
                 try {
                     pipeline.set(RedisConstants.generateJobKey(job.getId()),JSON.toJSONString(job));
@@ -177,17 +222,16 @@ public class RedisStorageService extends AbstractStorageService {
     @Override
     public List<AwesomeJob> consumeReadyJobs(String topic,int number) {
         try (Jedis jedis = jedisPool.getResource()){
-            Pipeline pipeline= jedis.pipelined();
             String topicListKey= RedisConstants.generateReadySetKey(topic);
-            Response<Long> countResp = pipeline.zcount(topicListKey,0,System.currentTimeMillis());
-            long realLength = Math.min(number,countResp.get());
+            long realLength = Math.min(number,jedis.zcount(topicListKey,0,System.currentTimeMillis()));
             List<AwesomeJob> list = new ArrayList<>(Long.valueOf(realLength).intValue());
-            Set<String> keys = pipeline.zrange(topicListKey,0,realLength).get();
+            Set<String> keys = jedis.zrange(topicListKey,0,realLength);
             for (String key:keys){
                 try {
                     String json = jedis.get(RedisConstants.generateJobKey(key));
                     AwesomeJob job = JSON.parseObject(json,AwesomeJob.class);
                     job.setStatus(RedisConstants.JobStatus.reserved.getValue());
+                    Pipeline pipeline= jedis.pipelined();
                     pipeline.multi();
                     pipeline.set(RedisConstants.generateJobKey(key), JSON.toJSONString(job));
                     pipeline.zrem(topicListKey,key);
@@ -205,6 +249,15 @@ public class RedisStorageService extends AbstractStorageService {
 
     @Override
     public boolean addAwesomeTopic(AwesomeTopic topic) {
+        if (topic.getCapacity()==null || topic.getCapacity()<1){
+            topic.setCapacity(Integer.MAX_VALUE);
+        }
+        if (topic.getSubJobLimit() == null || topic.getSubJobLimit() <= 0){
+            topic.setSubJobLimit(Integer.MAX_VALUE);
+        }
+        if (topic.getTriggerType() == null || topic.getTriggerType()<= 0){
+            topic.setTriggerType(RedisConstants.triggerType_expire);
+        }
         try (Jedis jedis = jedisPool.getResource()){
             long result = jedis.setnx(RedisConstants.generateTopicKey(topic.getTopic()), JSON.toJSONString(topic));
             if (result == 0){

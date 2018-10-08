@@ -28,7 +28,7 @@ public abstract class AbstractStorageService implements StorageService{
         this.url = url;
     }
 
-    protected abstract boolean doAddJob(AwesomeJob job);
+    protected abstract boolean doAddJob(AwesomeJob job) throws AwesomeException;
     protected abstract boolean checkJobRestrict(AwesomeJob job) throws AwesomeException;
 
 
