@@ -19,9 +19,7 @@ import me.xqh.awesome.delayqueue.storage.api.AwesomeTopic;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.Transaction;
+import redis.clients.jedis.*;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -79,20 +77,22 @@ public class RedisStorageService extends AbstractStorageService {
         //TODO 改为lua script
         boolean result = false;
         try(Jedis jedis = jedisPool.getResource()) {
-            Transaction tx = jedis.multi();
-            tx.set(RedisConstants.generateJobKey(jobId), JSON.toJSONString(job));
+            Pipeline pipeline = jedis.pipelined();
+            pipeline.multi();
+//            Transaction tx = jedis.multi();
+            pipeline.set(RedisConstants.generateJobKey(jobId), JSON.toJSONString(job));
             switch (job.getTriggerType()){
                 case RedisConstants.triggerType_expire:
-                    tx.zadd(RedisConstants.generateDelayBucketKey(),job.getExpireTime(),jobId);
+                    pipeline.zadd(RedisConstants.generateDelayBucketKey(),job.getExpireTime(),jobId);
                     break;
                 case RedisConstants.triggerType_count:
                     break;
                 case RedisConstants.triggerType_all:
-                    tx.zadd(RedisConstants.generateDelayBucketKey(),job.getExpireTime(),jobId);
+                    pipeline.zadd(RedisConstants.generateDelayBucketKey(),job.getExpireTime(),jobId);
                     break;
                 default:break;
             }
-            tx.exec();
+            pipeline.exec();
             System.out.println("job 加入：" + jobId+"; "+new Date(System.currentTimeMillis()));
             result = true;
         }catch (Exception e){
@@ -156,16 +156,18 @@ public class RedisStorageService extends AbstractStorageService {
     @Override
     public void transferExpiredJobs(List<AwesomeJob> jobList) {
         try (Jedis jedis = jedisPool.getResource()){
+            Pipeline pipeline = jedis.pipelined();
             for (AwesomeJob job: jobList){
                 job.setStatus(RedisConstants.JobStatus.ready.getValue());
-                Transaction  tx = jedis.multi();
+//                Transaction  tx = jedis.multi();
+                pipeline.multi();
                 try {
-                    tx.set(RedisConstants.generateJobKey(job.getId()),JSON.toJSONString(job));
-                    tx.zrem(RedisConstants.generateDelayBucketKey(),job.getId());
-                    tx.zadd(RedisConstants.generateReadySetKey(job.getTopic()),job.getExpireTime(),job.getId());
-                    tx.exec();
+                    pipeline.set(RedisConstants.generateJobKey(job.getId()),JSON.toJSONString(job));
+                    pipeline.zrem(RedisConstants.generateDelayBucketKey(),job.getId());
+                    pipeline.zadd(RedisConstants.generateReadySetKey(job.getTopic()),job.getExpireTime(),job.getId());
+                    pipeline.exec();
                 }catch (Exception e){
-                    tx.discard();
+                    pipeline.discard();
                     logger.error("job过期，转移到 ready queue消费出错，jobId:{},error:{}",job.getId(),e);
                 }
             }
@@ -175,17 +177,21 @@ public class RedisStorageService extends AbstractStorageService {
     @Override
     public List<AwesomeJob> consumeReadyJobs(String topic,int number) {
         try (Jedis jedis = jedisPool.getResource()){
+            Pipeline pipeline= jedis.pipelined();
             String topicListKey= RedisConstants.generateReadySetKey(topic);
-            long realLength = Math.min(number,jedis.zcount(topicListKey,0,System.currentTimeMillis()));
+            Response<Long> countResp = pipeline.zcount(topicListKey,0,System.currentTimeMillis());
+            long realLength = Math.min(number,countResp.get());
             List<AwesomeJob> list = new ArrayList<>(Long.valueOf(realLength).intValue());
-            Set<String> keys = jedis.zrange(topicListKey,0,realLength);
+            Set<String> keys = pipeline.zrange(topicListKey,0,realLength).get();
             for (String key:keys){
                 try {
                     String json = jedis.get(RedisConstants.generateJobKey(key));
                     AwesomeJob job = JSON.parseObject(json,AwesomeJob.class);
                     job.setStatus(RedisConstants.JobStatus.reserved.getValue());
-                    jedis.set(RedisConstants.generateJobKey(key), JSON.toJSONString(job));
-                    jedis.zrem(topicListKey,key);
+                    pipeline.multi();
+                    pipeline.set(RedisConstants.generateJobKey(key), JSON.toJSONString(job));
+                    pipeline.zrem(topicListKey,key);
+                    pipeline.exec();
                     //TODO 处理unAck 消息
                     list.add(job);
                 }catch (Exception e){
