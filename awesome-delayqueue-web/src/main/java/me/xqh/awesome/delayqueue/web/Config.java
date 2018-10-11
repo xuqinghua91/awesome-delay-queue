@@ -7,6 +7,7 @@
 
 package me.xqh.awesome.delayqueue.web;
 
+import me.xqh.awesome.delayqueue.common.AwesomeServiceLoader;
 import me.xqh.awesome.delayqueue.common.AwesomeURL;
 import me.xqh.awesome.delayqueue.storage.api.StorageFactory;
 import me.xqh.awesome.delayqueue.storage.api.StorageService;
@@ -51,15 +52,21 @@ public class Config {
 
     @Bean
     public StorageService storageService() throws IOException {
-        ServiceLoader<StorageFactory> sl = ServiceLoader.load(StorageFactory.class);
-        Iterator<StorageFactory> iter = sl.iterator();
-        StorageService storageService = null;
-        while (iter.hasNext()){
-            //TODO 根据storage获取合适的StorageFactory
-            StorageFactory storageFactory = iter.next();
-            storageService = storageFactory.getStorageService(awesomeUrl());
-            break;
-        }
+        AwesomeURL url = awesomeUrl();
+        AwesomeServiceLoader<StorageFactory> serviceLoader = AwesomeServiceLoader.load(StorageFactory.class,storage);
+
+        StorageFactory storageFactory = serviceLoader.getNeedClass();
+        StorageService storageService = storageFactory.getStorageService(url);
+
+//        ServiceLoader<StorageFactory> sl = ServiceLoader.load(StorageFactory.class);
+//        Iterator<StorageFactory> iter = sl.iterator();
+//        StorageService storageService = null;
+//        while (iter.hasNext()){
+//            //TODO 根据storage获取合适的StorageFactory
+//            StorageFactory storageFactory = iter.next();
+//            storageService = storageFactory.getStorageService(awesomeUrl());
+//            break;
+//        }
         return storageService;
     }
 }

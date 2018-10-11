@@ -7,6 +7,7 @@
 
 package me.xqh.awesome.delayqueue.scheduling;
 
+import me.xqh.awesome.delayqueue.common.AwesomeServiceLoader;
 import me.xqh.awesome.delayqueue.common.AwesomeURL;
 import me.xqh.awesome.delayqueue.storage.api.StorageFactory;
 import me.xqh.awesome.delayqueue.storage.api.StorageService;
@@ -25,14 +26,10 @@ public abstract class AbstractAwesomeExecutor implements AwesomeExecutor {
     }
 
     private void init(AwesomeURL url){
-        ServiceLoader<StorageFactory> sl = ServiceLoader.load(StorageFactory.class);
-        Iterator<StorageFactory> iter = sl.iterator();
-        while (iter.hasNext()){
-            //TODO
-            StorageFactory storageFactory = iter.next();
-            storageService = storageFactory.getStorageService(url);
-            break;
-        }
+        AwesomeServiceLoader<StorageFactory> serviceLoader = AwesomeServiceLoader.load(StorageFactory.class,url.getStorage());
+
+        StorageFactory storageFactory = serviceLoader.getNeedClass();
+        storageService = storageFactory.getStorageService(url);
     }
 
 

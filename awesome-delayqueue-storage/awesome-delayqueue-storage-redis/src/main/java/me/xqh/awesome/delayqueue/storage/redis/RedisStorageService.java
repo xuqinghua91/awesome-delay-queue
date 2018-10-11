@@ -8,6 +8,7 @@
 package me.xqh.awesome.delayqueue.storage.redis;
 
 import com.alibaba.fastjson.JSON;
+import me.xqh.awesome.delayqueue.TimeUtil;
 import me.xqh.awesome.delayqueue.common.AwesomeURL;
 import me.xqh.awesome.delayqueue.common.Constants;
 import me.xqh.awesome.delayqueue.common.StringUtils;
@@ -102,7 +103,7 @@ public class RedisStorageService extends AbstractStorageService {
                 default:break;
             }
             pipeline.exec();
-            System.out.println("job 加入：" + jobId+"; "+new Date(System.currentTimeMillis()));
+            System.out.println("job 加入：" + jobId+"; "+ TimeUtil.getTimeStr(new Date()));
             result = true;
         }catch (Exception e){
             System.out.println(e);

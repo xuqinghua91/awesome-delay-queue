@@ -1,0 +1,1 @@
+redis=me.xqh.awesome.delayqueue.storage.redis.RedisStorageFactory

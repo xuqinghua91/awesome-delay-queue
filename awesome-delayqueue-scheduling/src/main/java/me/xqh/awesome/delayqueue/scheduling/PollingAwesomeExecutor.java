@@ -7,6 +7,7 @@
 
 package me.xqh.awesome.delayqueue.scheduling;
 
+import me.xqh.awesome.delayqueue.TimeUtil;
 import me.xqh.awesome.delayqueue.common.AwesomeURL;
 import me.xqh.awesome.delayqueue.storage.api.AwesomeJob;
 
@@ -26,6 +27,7 @@ public class PollingAwesomeExecutor extends AbstractAwesomeExecutor {
     private ConcurrentLinkedQueue<AwesomeJob> blockingQueue = new ConcurrentLinkedQueue<>();
     private static final int  pollTimeIntervalMills = 1000;
 
+    private boolean shutdown;
     public PollingAwesomeExecutor(AwesomeURL url){
         super(url);
 //        executorService = Executors.newFixedThreadPool(coreSize);
@@ -39,15 +41,14 @@ public class PollingAwesomeExecutor extends AbstractAwesomeExecutor {
     }
     @Override
     public void execute() {
-        while (true){
-//            System.out.println("开始轮询..."+new Date(System.currentTimeMillis()));
+        while (!shutdown){
             produce();
-            consume();
             try {
                 TimeUnit.MILLISECONDS.sleep(pollTimeIntervalMills);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+            consume();
         }
     }
 
@@ -81,21 +82,27 @@ public class PollingAwesomeExecutor extends AbstractAwesomeExecutor {
      * 从阻塞队列中获取job,每个job开启一个线程提交到线程池
      */
     private void consume(){
-        for (int i=0;i<blockingQueue.size();i++){
-            final AwesomeJob job = blockingQueue.poll();
-            System.out.println("consume 取出 job: "+job.getId());
+        int size = blockingQueue.size();
+        for (int i=0;i<size;i++){
+            System.out.println("本次调度，队列中数量："+size);
             Runnable run = new Runnable() {
                 @Override
                 public void run() {
-                    System.out.println("开始执行 consume job: "+job.getId()+" , "+ new Date(System.currentTimeMillis()));
+                    AwesomeJob job = blockingQueue.poll();
+                    System.out.println(Thread.currentThread().getId()+" 开始消费: "+job.getId()+" , on "+ TimeUtil.getTimeStr(new Date()));
                     List<AwesomeJob> list = new ArrayList<>(1);
                     list.add(job);
                     storageService.transferExpiredJobs(list);
-                    System.out.println("结束执行 consume job: "+job.getId());
+                    System.out.println(Thread.currentThread().getId()+ "结束消费 consume job: "+job.getId()+" , on "+ TimeUtil.getTimeStr(new Date()));
                 }
             };
             executorService.submit(run);
         }
 
     }
+
+    public void shutdown(){
+        shutdown = true;
+    }
+
 }
